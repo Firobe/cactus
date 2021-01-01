@@ -1,0 +1,6 @@
+(executable
+ (name cactus)
+ (libraries WiringPi i2c)
+ (preprocess (pps ppx_deriving.show))
+)
+
