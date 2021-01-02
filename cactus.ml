@@ -6,7 +6,7 @@ type pwm_config = {
 let active_pwm = {period = 60.; duty = 0.8}
 
 let show_temperature t =
-  Printf.printf "Current temperature: %f°C\n" t
+  Printf.printf "Current temperature: %g°C\n" t
 
 let rec active_loop pwm times =
   if times > 0 then begin
@@ -19,7 +19,7 @@ let rec active_loop pwm times =
     active_loop pwm (times - 1)
   end
 
-let margin = 1.0 (* margin below goal temperature *)
+let margin = 0.5 (* margin below goal temperature *)
 
 let rec heat_goal t goal = 
   let current = Temperature.get t in
