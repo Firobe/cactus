@@ -8,6 +8,15 @@ let active_pwm = {period = 60.; duty = 0.8}
 let show_temperature t =
   Printf.printf "Current temperature: %g°C\n" t
 
+let log_temperature temp heating =
+  (* timestamp temp heating *)
+  let logfile = "/home/pi/Projects/cactus/cactus.log" in
+  let chan = open_out_gen [Open_creat; Open_append] 0o644 logfile in
+  let timestamp = Unix.time () |> Int64.of_float |> Int64.to_string in
+  Printf.fprintf chan "%s %g %d\n" timestamp temp
+    (if heating then 1 else 0);
+  close_out chan
+
 let rec active_loop pwm times =
   if times > 0 then begin
     let active_length = pwm.duty *. pwm.period in
@@ -23,20 +32,24 @@ let margin = 0.5 (* margin below goal temperature *)
 
 let rec heat_goal t goal = 
   let current = Temperature.get t in
-  show_temperature current;
-  if current >= goal then
+  if current >= goal then begin
+    Printf.printf "NOW WAITING\n";
     wait_goal t goal
-  else begin
+  end else begin
+    show_temperature current;
+    log_temperature current true;
     active_loop active_pwm 1;
     heat_goal t goal
   end
 
 and wait_goal t goal =
   let current = Temperature.get t in
-  show_temperature current;
-  if current <= (goal -. margin) then
+  if current <= (goal -. margin) then begin
+    Printf.printf "NOW HEATING\n";
     heat_goal t goal
-  else begin
+  end else begin
+    show_temperature current;
+    log_temperature current false;
     Io.select Mode.Idle;
     Io.sleep ~blink_mode:Mode.Disabled 60.;
     wait_goal t goal
