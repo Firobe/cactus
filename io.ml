@@ -20,19 +20,21 @@ let init () =
   pinMode Mode.(get_pin Active) 1;
   pinMode Mode.(get_pin Disabled) 1;
   pinMode Mode.(get_pin Idle) 1;
-  reset ()
+  select Mode.Disabled
 
 let sleep ?blink_mode s =
+  let%lwt _ = Lwt_main.yield () in
   let fsec_to_millis s =
     int_of_float @@ s *. 1000.
   in
   let ms = fsec_to_millis s in
   match blink_mode with
-  | None -> WiringPi.delay ms
+  | None -> WiringPi.delay ms; Lwt.return_unit
   | Some mode ->
     let rec aux left =
-      if left < 1000 then WiringPi.delay left
+      if left < 1000 then (WiringPi.delay left; Lwt.return_unit)
       else (
+        let%lwt _ = Lwt_main.yield () in
         write mode High;
         WiringPi.delay 100;
         write mode Low;

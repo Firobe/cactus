@@ -6,7 +6,7 @@ set xdata time
 set timefmt '%s'
 set format x '%s'
 set table '/tmp/data-smoothed'
-set samples 1000
+set samples 10000
 plot '/home/pi/Projects/cactus/cactus.log' u 1:2 smooth bezier
 unset table
 
@@ -14,6 +14,7 @@ unset table
 set terminal qt enhanced lw 3
 set style data lines
 
+set xrange [time(0) - 24*60*60:]
 set yrange [18.0:24.0]
 
 # Time format
