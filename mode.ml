@@ -1,8 +1,4 @@
-type t =
-  | Active 
-  | Idle
-  | Disabled
-[@@deriving show]
+type t = Active | Idle | Disabled [@@deriving show]
 
 let of_string = function
   | "Active" | "active" | "1" | "on" -> Active
@@ -10,7 +6,4 @@ let of_string = function
   | "Disabled" | "disabled" | "off" | "0" -> Disabled
   | s -> failwith ("Wrong mode: " ^ s)
 
-let get_pin = function
-  | Active -> 1
-  | Idle -> 2
-  | Disabled -> 3
+let get_pin = function Active -> 1 | Idle -> 2 | Disabled -> 3
