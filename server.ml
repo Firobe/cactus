@@ -3,16 +3,41 @@ open Lwt
 let current_goal = ref 0.
 let goal_has_changed = ref false
 
-let handle_message msg =
-  match float_of_string_opt msg with
-  | Some goal ->
-      if !current_goal <> goal then (
-        goal_has_changed := true ;
-        Printf.printf "Received a new goal: %g\n%!" goal ;
-        current_goal := goal ;
-        "Goal changed" )
-      else "Same goal"
-  | None -> "Float expected"
+let validate_temperature v =
+  match float_of_string_opt v with
+  | Some goal when goal >= 28. -> Result.error (`Msg "Too high")
+  | Some goal when goal < 0. -> Result.error (`Msg "Must be positive")
+  | Some goal -> Result.ok goal
+  | None -> Result.error (`Msg "Float expected")
+
+let motd =
+  ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\
+   > Cactus heater server | Please don't be evil ! >\n\
+   >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+
+let handle_message temp msg =
+  match String.split_on_char ' ' msg with
+  | ["get"] -> string_of_float !current_goal
+  | ["set"; v] -> begin
+      match validate_temperature v with
+      | Result.Ok goal ->
+        if !current_goal <> goal then (
+          goal_has_changed := true ;
+          Printf.printf "Received a new goal: %g\n%!" goal ;
+          current_goal := goal ;
+          "Goal changed" )
+        else "Same goal"
+      | Result.Error (`Msg m) -> m
+    end
+  | ["read"] ->
+    let v = Temperature.get temp in
+    string_of_float v
+  | ["help"] ->
+    "help           Get this message\n\
+     get            Get current goal\n\
+     set TEMP       Set current goal\n\
+     read           Read actual room temperature"
+  | _ -> "Invalid command"
 
 let listen_address = Unix.inet_addr_any
 let port = 2713
@@ -24,22 +49,27 @@ let create_socket () =
   let* () = bind sock @@ ADDR_INET (listen_address, port) in
   listen sock 3 ; return sock
 
-let rec handle_connection ic oc =
-  let* msg = Lwt_io.read_line_opt ic in
-  match msg with
-  | Some msg ->
-      let reply = handle_message msg in
+let handle_connection temp ic oc =
+  let rec repl () =
+    let* () = Lwt_io.write oc "> " in
+    let* msg = Lwt_io.read_line_opt ic in
+    match msg with
+    | Some msg ->
+      let reply = handle_message temp msg in
       let* () = Lwt_io.write_line oc reply in
-      handle_connection ic oc
-  | None ->
+      repl ()
+    | None ->
       Printf.printf "Connection closed\n%!" ;
       return_unit
+  in
+  let* () = Lwt_io.write_line oc motd in
+  repl ()
 
-let accept_connection conn =
+let accept_connection temp conn =
   let fd, _ = conn in
   let ic = Lwt_io.of_fd ~mode:Lwt_io.Input fd in
   let oc = Lwt_io.of_fd ~mode:Lwt_io.Output fd in
-  Lwt.on_failure (handle_connection ic oc) (fun e ->
+  Lwt.on_failure (handle_connection temp ic oc) (fun e ->
       Printf.printf "Connection error: %s\n" (Printexc.to_string e) ) ;
   Printf.printf "New connection\n%!" ;
   return_unit
@@ -51,12 +81,12 @@ let has_changed () =
 
 let get_goal () = !current_goal
 
-let init goal =
+let init goal temp =
   current_goal := goal ;
   let* sock = create_socket () in
   let rec serve () =
     Printf.printf "Listening...\n%!" ;
     let* conn = Lwt_unix.accept sock in
-    let* _ = accept_connection conn in
+    let* _ = accept_connection temp conn in
     serve () in
   serve ()

@@ -3,6 +3,7 @@ reset
 
 # Plot smoothed data
 set xdata time
+set xrange [time(0) - 24*60*60:]
 set timefmt '%s'
 set format x '%s'
 set table '/tmp/data-smoothed'

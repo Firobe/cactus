@@ -1,7 +1,7 @@
 type pwm_config = {period: float; (* seconds *)
                                   duty: float (* [0 - 1] *)}
 
-let active_pwm = {period= 60.; duty= 0.8}
+let active_pwm = {period= 60.; duty= 1.0}
 let show_temperature t = Printf.printf "Current temperature: %g°C\n" t
 
 let log_temperature goal temp heating =
@@ -91,7 +91,7 @@ let usage () =
 
 let launch_daemon driver initial_goal =
   Lwt_main.run
-    (Lwt.join [Server.init initial_goal; heat_goal driver initial_goal])
+    (Lwt.join [Server.init initial_goal driver; heat_goal driver initial_goal])
 
 let main =
   Io.init () ;

@@ -83,5 +83,5 @@ let init () =
     | Result.Ok x -> x
     | Result.Error _ -> failwith "Cannot access to temperature sensor" in
   let cal = calibrate i2c in
-  Printf.printf "Calibration done:\n%s\n" (show_cal cal) ;
+  Printf.printf "Calibration OK\n" ;
   {i2c; cal}
