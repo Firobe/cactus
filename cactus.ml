@@ -1,5 +1,7 @@
-type pwm_config = {period: float; (* seconds *)
-                                  duty: float (* [0 - 1] *)}
+type pwm_config = {
+  period: float; (* seconds *)
+  duty: float (* [0 - 1] *)
+}
 
 let active_pwm = {period= 60.; duty= 1.0}
 let show_temperature t = Printf.printf "Current temperature: %g°C\n" t
@@ -22,12 +24,19 @@ let rec active_loop pwm times =
     let standby_length = (1. -. pwm.duty) *. pwm.period in
     Io.select Mode.Active ;
     let* _ = Io.sleep ~blink_mode:Mode.Idle active_length in
-    Io.select Mode.Idle ;
-    let* _ = Io.sleep ~blink_mode:Mode.Idle standby_length in
+    (* Do not switch on/off if delay is small *)
+    let*_ = if standby_length > 0.5 then (
+        Io.select Mode.Idle ;
+        Io.sleep ~blink_mode:Mode.Idle standby_length
+      ) else Io.sleep standby_length
+    in
     active_loop pwm (times - 1) )
-  else Lwt.return_unit
+  else (
+    Io.select Mode.Idle ;
+    Lwt.return_unit
+  )
 
-let margin = 0.5 (* margin below goal temperature *)
+let margin = 0.5 (* margin below goal temperature (in °C) *)
 
 let rec heat_goal t goal =
   if Server.has_changed () then (
@@ -85,13 +94,15 @@ let test_routine () =
 
 let usage () =
   Printf.printf "Usage: cactus select [on|off]\n" ;
-  Printf.printf "       cactus goal TEMPERATURE\n" ;
+  Printf.printf "       cactus server [INIT_TEMPERATURE]\n" ;
   Printf.printf "       cactus read\n" ;
   Printf.printf "       cactus test\n"
 
 let launch_daemon driver initial_goal =
   Lwt_main.run
     (Lwt.join [Server.init initial_goal driver; heat_goal driver initial_goal])
+
+let default_server_temperature = 18.
 
 let main =
   Io.init () ;
@@ -101,12 +112,15 @@ let main =
     | "select" ->
         if argc <> 3 then usage ()
         else Sys.argv.(2) |> Mode.of_string |> Io.select
-    | "goal" -> (
-        if argc <> 3 then usage ()
-        else
+    | "server" -> (
+        if argc = 2 then
+          launch_daemon (Temperature.init ()) default_server_temperature
+        else if argc = 3 then
           match float_of_string_opt Sys.argv.(2) with
           | None -> failwith "Temperature must be a float"
-          | Some goal -> launch_daemon (Temperature.init ()) goal )
+          | Some goal -> launch_daemon (Temperature.init ()) goal
+        else usage ()
+      )
     | "read" -> Temperature.init () |> Temperature.get |> show_temperature
     | "test" -> Lwt_main.run (test_routine ())
     | _ -> failwith "Unknown command"
