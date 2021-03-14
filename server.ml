@@ -17,7 +17,7 @@ let motd =
 
 let handle_message temp msg =
   match String.split_on_char ' ' msg with
-  | ["get"] -> string_of_float !current_goal
+  | ["get"] -> `Reply (string_of_float !current_goal)
   | ["set"; v] -> begin
       match validate_temperature v with
       | Result.Ok goal ->
@@ -25,19 +25,21 @@ let handle_message temp msg =
           goal_has_changed := true ;
           Printf.printf "Received a new goal: %g\n%!" goal ;
           current_goal := goal ;
-          "Goal changed" )
-        else "Same goal"
-      | Result.Error (`Msg m) -> m
+          `Reply "Goal changed" )
+        else `Reply "Same goal"
+      | Result.Error (`Msg m) -> `Reply m
     end
   | ["read"] ->
     let v = Temperature.get temp in
-    string_of_float v
-  | ["help"] ->
+    `Reply (string_of_float v)
+  | ["exit"] -> `Close
+  | ["help"] -> `Reply
     "help           Get this message\n\
+     exit           End Telnet session\n\
      get            Get current goal\n\
      set TEMP       Set current goal\n\
      read           Read actual room temperature"
-  | _ -> "Invalid command"
+  | _ -> `Reply "Invalid command"
 
 let listen_address = Unix.inet_addr_any
 let port = 2713
@@ -46,18 +48,22 @@ let ( let* ) = Lwt.bind
 let create_socket () =
   let open Lwt_unix in
   let sock = socket PF_INET SOCK_STREAM 0 in
+  Lwt_unix.setsockopt sock SO_REUSEADDR true ;
   let* () = bind sock @@ ADDR_INET (listen_address, port) in
   listen sock 3 ; return sock
 
-let handle_connection temp ic oc =
+let handle_connection temp fd ic oc =
   let rec repl () =
     let* () = Lwt_io.write oc "> " in
     let* msg = Lwt_io.read_line_opt ic in
     match msg with
     | Some msg ->
-      let reply = handle_message temp msg in
-      let* () = Lwt_io.write_line oc reply in
-      repl ()
+      begin match handle_message temp msg with
+        | `Reply reply ->
+          let* () = Lwt_io.write_line oc reply in
+          repl ()
+        | `Close -> Lwt_unix.close fd
+      end
     | None ->
       Printf.printf "Connection closed\n%!" ;
       return_unit
@@ -69,7 +75,7 @@ let accept_connection temp conn =
   let fd, _ = conn in
   let ic = Lwt_io.of_fd ~mode:Lwt_io.Input fd in
   let oc = Lwt_io.of_fd ~mode:Lwt_io.Output fd in
-  Lwt.on_failure (handle_connection temp ic oc) (fun e ->
+  Lwt.on_failure (handle_connection temp fd ic oc) (fun e ->
       Printf.printf "Connection error: %s\n" (Printexc.to_string e) ) ;
   Printf.printf "New connection\n%!" ;
   return_unit
