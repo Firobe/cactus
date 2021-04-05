@@ -32,7 +32,6 @@ let rec active_loop pwm times =
     in
     active_loop pwm (times - 1) )
   else (
-    Io.select Mode.Idle ;
     Lwt.return_unit
   )
 
