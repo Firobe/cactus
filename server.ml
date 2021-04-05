@@ -29,15 +29,25 @@ let handle_message temp msg =
         else `Reply "Same goal"
       | Result.Error (`Msg m) -> `Reply m
     end
+  | ["adjust"; v] -> begin
+      match validate_temperature v with
+      | Result.Ok cal ->
+        let off = Temperature.adjust cal temp in
+        let s = Printf.sprintf "Registered offset of %g°C" off in
+        `Reply s
+      | Result.Error (`Msg m) -> `Reply m
+    end
   | ["read"] ->
     let v = Temperature.get temp in
-    `Reply (string_of_float v)
+    let m = Printf.sprintf "Temp: %g°C (offset %g)" v temp.offset in
+    `Reply m
   | ["exit"] -> `Close
   | ["help"] -> `Reply
     "help           Get this message\n\
      exit           End Telnet session\n\
      get            Get current goal\n\
      set TEMP       Set current goal\n\
+     adjust TEMP    Calibrate with real room temperature\n\
      read           Read actual room temperature"
   | _ -> `Reply "Invalid command"
 

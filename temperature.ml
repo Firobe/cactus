@@ -13,7 +13,7 @@ type calibration =
   ; mc: Int16.t
   ; md: Int16.t }
 
-type t = {i2c: I2c.t; cal: calibration}
+type t = {i2c: I2c.t; cal: calibration; mutable offset: float}
 
 let get_ok = function Ok x -> x | Error _ -> failwith "Couldn't operate"
 
@@ -67,13 +67,23 @@ let get_new_raw_temperature i2c =
   WiringPi.delay 6 ;
   read_word_b i2c 0xF6
 
-let get t =
+let get_without_offset t = 
   let raw = Uint16.to_int (get_new_raw_temperature t.i2c) in
   let x1 = ((raw - Uint16.to_int t.cal.ac6) * Uint16.to_int t.cal.ac5) asr 15 in
   let x2 = (Int16.to_int t.cal.mc lsl 11) / (x1 + Int16.to_int t.cal.md) in
   (* TODO for pressure, update b6 *)
   let temp = (x1 + x2 + 8) asr 4 in
   float_of_int temp /. 10.
+
+let adjust cal t =
+  let temp = get_without_offset t in
+  let off = cal -. temp in
+  t.offset <- off ;
+  off
+
+let get t =
+  let raw = get_without_offset t in
+  raw +. t.offset
 
 let init () =
   let i2c_address = 0x77 in
@@ -84,4 +94,4 @@ let init () =
     | Result.Error _ -> failwith "Cannot access to temperature sensor" in
   let cal = calibrate i2c in
   Printf.printf "Calibration OK\n" ;
-  {i2c; cal}
+  {i2c; cal; offset = 0.}
