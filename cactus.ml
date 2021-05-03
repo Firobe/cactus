@@ -37,36 +37,49 @@ let rec active_loop pwm times =
 
 let margin = 0.5 (* margin below goal temperature (in °C) *)
 
-let rec heat_goal t goal =
+let rec idle_loop t =
+  if Server.get_status () then (
+    Printf.printf "Turned on!\n%!" ;
+    heat_goal t (Server.get_goal ())
+  ) else (
+    Io.select Mode.Disabled ;
+    let* _ = Io.sleep ~blink_mode:Mode.Disabled 2. in
+    idle_loop t
+  )
+
+and manage_server t =
   if Server.has_changed () then (
     Printf.printf "Updating goal!\n%!" ;
-    heat_goal t (Server.get_goal ()) )
-  else
-    let current = Temperature.get t in
-    if current >= goal then (
-      Printf.printf "NOW WAITING\n" ;
-      wait_goal t goal )
-    else (
-      show_temperature current ;
-      log_temperature goal current true ;
-      let* _ = active_loop active_pwm 1 in
-      heat_goal t goal )
+    heat_goal t (Server.get_goal ())
+  ) else if not (Server.get_status ()) then (
+    Printf.printf "Turned off!\n%!" ;
+    idle_loop t
+  ) else Lwt.return_unit
+
+and heat_goal t goal =
+  let* _ = manage_server t in
+  let current = Temperature.get t in
+  if current >= goal then (
+    Printf.printf "NOW WAITING\n" ;
+    wait_goal t goal )
+  else (
+    show_temperature current ;
+    log_temperature goal current true ;
+    let* _ = active_loop active_pwm 1 in
+    heat_goal t goal )
 
 and wait_goal t goal =
-  if Server.has_changed () then (
-    Printf.printf "Updating goal!\n%!" ;
-    heat_goal t (Server.get_goal ()) )
-  else
-    let current = Temperature.get t in
-    if current <= goal -. margin then (
-      Printf.printf "NOW HEATING\n" ;
-      heat_goal t goal )
-    else (
-      show_temperature current ;
-      log_temperature goal current false ;
-      Io.select Mode.Idle ;
-      let* _ = Io.sleep ~blink_mode:Mode.Disabled 60. in
-      wait_goal t goal )
+  let* _ = manage_server t in
+  let current = Temperature.get t in
+  if current <= goal -. margin then (
+    Printf.printf "NOW HEATING\n" ;
+    heat_goal t goal )
+  else (
+    show_temperature current ;
+    log_temperature goal current false ;
+    Io.select Mode.Idle ;
+    let* _ = Io.sleep ~blink_mode:Mode.Disabled 60. in
+    wait_goal t goal )
 
 let test_routine () =
   Io.select Active ;

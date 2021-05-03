@@ -2,6 +2,7 @@ open Lwt
 
 let current_goal = ref 0.
 let goal_has_changed = ref false
+let currently_enabled = ref true
 
 let validate_temperature v =
   match float_of_string_opt v with
@@ -29,6 +30,12 @@ let handle_message temp msg =
         else `Reply "Same goal"
       | Result.Error (`Msg m) -> `Reply m
     end
+  | ["turn"; "on"] ->
+    if !currently_enabled then `Reply "Already on."
+    else begin currently_enabled := true; `Reply "Turned on." end
+  | ["turn"; "off"] ->
+    if not !currently_enabled then `Reply "Already off."
+    else begin currently_enabled := false; `Reply "Turned off." end
   | ["adjust"; v] -> begin
       match validate_temperature v with
       | Result.Ok cal ->
@@ -39,13 +46,15 @@ let handle_message temp msg =
     end
   | ["read"] ->
     let v = Temperature.get temp in
-    let m = Printf.sprintf "Temp: %g°C (offset %g)" v temp.offset in
+    let s = !currently_enabled in
+    let m = Printf.sprintf "Temp: %g°C (offset %g) Enabled: %B" v temp.offset s in
     `Reply m
   | ["exit"] -> `Close
   | ["help"] -> `Reply
     "help           Get this message\n\
      exit           End Telnet session\n\
      get            Get current goal\n\
+     turn on/off    Enable enalbe/disable\n\
      set TEMP       Set current goal\n\
      adjust TEMP    Calibrate with real room temperature\n\
      read           Read actual room temperature"
@@ -96,6 +105,8 @@ let has_changed () =
   old
 
 let get_goal () = !current_goal
+
+let get_status () = !currently_enabled
 
 let init goal temp =
   current_goal := goal ;
