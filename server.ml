@@ -54,7 +54,7 @@ let handle_message temp msg =
     "help           Get this message\n\
      exit           End Telnet session\n\
      get            Get current goal\n\
-     turn on/off    Enable enalbe/disable\n\
+     turn on/off    Enable enable/disable\n\
      set TEMP       Set current goal\n\
      adjust TEMP    Calibrate with real room temperature\n\
      read           Read actual room temperature"
