@@ -87,7 +87,7 @@ let handle_connection temp fd ic oc =
       Printf.printf "Connection closed\n%!" ;
       return_unit
   in
-  let* () = Lwt_io.write_line oc motd in
+  (* let* () = Lwt_io.write_line oc motd in *)
   repl ()
 
 let accept_connection temp conn =
