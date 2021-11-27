@@ -36,6 +36,22 @@ let sleep ?blink_mode s =
           write mode High ;
           WiringPi.delay 100 ;
           write mode Low ;
-          WiringPi.delay 900 ;
+          WiringPi.delay 100 ;
+          let* _ = Lwt.pause () in
+          WiringPi.delay 100 ;
+          let* _ = Lwt.pause () in
+          WiringPi.delay 100 ;
+          let* _ = Lwt.pause () in
+          WiringPi.delay 100 ;
+          let* _ = Lwt.pause () in
+          WiringPi.delay 100 ;
+          let* _ = Lwt.pause () in
+          WiringPi.delay 100 ;
+          let* _ = Lwt.pause () in
+          WiringPi.delay 100 ;
+          let* _ = Lwt.pause () in
+          WiringPi.delay 100 ;
+          let* _ = Lwt.pause () in
+          WiringPi.delay 100 ;
           aux (left - 1000) in
       aux ms
