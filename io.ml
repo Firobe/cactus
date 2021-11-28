@@ -23,35 +23,15 @@ let init () =
 let ( let* ) = Lwt.bind
 
 let sleep ?blink_mode s =
-  let* () = Lwt.pause () in
-  let fsec_to_millis s = int_of_float @@ (s *. 1000.) in
-  let ms = fsec_to_millis s in
   match blink_mode with
-  | None -> WiringPi.delay ms ; Lwt.return_unit
+  | None -> Lwt_unix.sleep s
   | Some mode ->
-      let rec aux left =
-        if left < 1000 then (WiringPi.delay left ; Lwt.return_unit)
-        else
-          let* _ = Lwt.pause () in
-          write mode High ;
-          WiringPi.delay 100 ;
-          write mode Low ;
-          WiringPi.delay 100 ;
-          let* _ = Lwt.pause () in
-          WiringPi.delay 100 ;
-          let* _ = Lwt.pause () in
-          WiringPi.delay 100 ;
-          let* _ = Lwt.pause () in
-          WiringPi.delay 100 ;
-          let* _ = Lwt.pause () in
-          WiringPi.delay 100 ;
-          let* _ = Lwt.pause () in
-          WiringPi.delay 100 ;
-          let* _ = Lwt.pause () in
-          WiringPi.delay 100 ;
-          let* _ = Lwt.pause () in
-          WiringPi.delay 100 ;
-          let* _ = Lwt.pause () in
-          WiringPi.delay 100 ;
-          aux (left - 1000) in
-      aux ms
+    let rec aux left =
+      if left < 1. then Lwt_unix.sleep left
+      else begin
+        write mode High ;
+        let* _ = Lwt_unix.sleep 0.1 in
+        write mode Low ;
+        let* _ = Lwt_unix.sleep 0.9 in
+        aux (left -. 1.)
+      end in aux s
