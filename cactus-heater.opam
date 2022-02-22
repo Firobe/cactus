@@ -9,6 +9,7 @@ homepage: "https://github.com/Firobe/cactus"
 bug-reports: "https://github.com/Firobe/cactus/issues"
 depends: [
   "wiringpi"
+  "ppx_deriving"
   "lwt"
   "i2c"
   "dune" {>= "2.8" & build}

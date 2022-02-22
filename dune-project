@@ -14,6 +14,7 @@
     (description "Heater regulator")
     (depends
         wiringpi
+        ppx_deriving
         lwt
         i2c
         (dune :build)
