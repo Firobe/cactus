@@ -1,9 +1,3 @@
-type pwm_config = {
-  period: float; (* seconds *)
-  duty: float (* [0 - 1] *)
-}
-
-let active_pwm = {period= 60.; duty= 1.0}
 let show_temperature t = Printf.printf "Current temperature: %g°C\n" t
 
 let log_temperature goal temp heating =
@@ -18,24 +12,16 @@ let log_temperature goal temp heating =
 
 let ( let* ) = Lwt.bind
 
-let rec active_loop pwm times =
-  if times > 0 then (
-    let active_length = pwm.duty *. pwm.period in
-    let standby_length = (1. -. pwm.duty) *. pwm.period in
-    Io.select Mode.Active ;
-    let* _ = Io.sleep ~blink_mode:Mode.Idle active_length in
-    (* Do not switch on/off if delay is small *)
-    let*_ = if standby_length > 0.5 then (
-        Io.select Mode.Idle ;
-        Io.sleep ~blink_mode:Mode.Idle standby_length
-      ) else Io.sleep standby_length
-    in
-    active_loop pwm (times - 1) )
-  else (
-    Lwt.return_unit
-  )
-
 let margin = 0.5 (* margin below goal temperature (in °C) *)
+let active_period = 60. (* length of a heat cycle *)
+
+let should_keep_heating current goal = current < goal
+let should_keep_waiting current goal = current >= goal -. margin
+
+let heat_once () =
+  Io.select Mode.Active ;
+  let* _ = Io.sleep ~blink_mode:Mode.Idle active_period in
+  Lwt.return_unit
 
 let rec idle_loop t =
   if Server.get_status () then (
@@ -59,27 +45,31 @@ and manage_server t =
 and heat_goal t goal =
   let* _ = manage_server t in
   let current = Temperature.get t in
-  if current >= goal then (
-    Printf.printf "NOW WAITING\n" ;
-    wait_goal t goal )
-  else (
+  if should_keep_heating current goal then (
     show_temperature current ;
     log_temperature goal current true ;
-    let* _ = active_loop active_pwm 1 in
-    heat_goal t goal )
+    let* () = heat_once () in
+    heat_goal t goal
+  )
+  else (
+    Printf.printf "NOW WAITING\n" ;
+    wait_goal t goal
+  )
 
 and wait_goal t goal =
   let* _ = manage_server t in
   let current = Temperature.get t in
-  if current <= goal -. margin then (
-    Printf.printf "NOW HEATING\n" ;
-    heat_goal t goal )
-  else (
+  if should_keep_waiting current goal then (
     show_temperature current ;
     log_temperature goal current false ;
     Io.select Mode.Idle ;
     let* _ = Io.sleep ~blink_mode:Mode.Disabled 60. in
-    wait_goal t goal )
+    wait_goal t goal
+  )
+  else (
+    Printf.printf "NOW HEATING\n" ;
+    heat_goal t goal
+  )
 
 let test_routine () =
   Io.select Active ;
