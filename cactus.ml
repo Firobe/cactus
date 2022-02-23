@@ -13,63 +13,61 @@ let log_temperature goal temp heating =
 let ( let* ) = Lwt.bind
 
 let margin = 0.5 (* margin below goal temperature (in °C) *)
-let active_period = 60. (* length of a heat cycle *)
+let quantum = 2. (* maximum reactivity time *)
 
-let should_keep_heating current goal = current < goal
-let should_keep_waiting current goal = current >= goal -. margin
+(* Cactus state machine *)
 
-let heat_once () =
-  Io.select Mode.Active ;
-  let* _ = Io.sleep ~blink_mode:Mode.Idle active_period in
-  Lwt.return_unit
+type state_id = Wait | Off | Heat
+[@@deriving show]
 
-let rec idle_loop t =
-  if Server.get_status () then (
-    Printf.printf "Turned on!\n%!" ;
-    heat_goal t (Server.get_goal ())
-  ) else (
-    Io.select Mode.Disabled ;
-    let* _ = Io.sleep ~blink_mode:Mode.Disabled 2. in
-    idle_loop t
-  )
+type state_descr = {
+  mode : Mode.t;
+  blink : Mode.t;
+  transitions : (state_id * (float -> Server.state -> bool)) list;
+}
 
-and manage_server t =
-  if Server.has_changed () then (
-    Printf.printf "Updating goal!\n%!" ;
-    heat_goal t (Server.get_goal ())
-  ) else if not (Server.get_status ()) then (
-    Printf.printf "Turned off!\n%!" ;
-    idle_loop t
-  ) else Lwt.return_unit
+let off_state = {
+  mode = Mode.Disabled;
+  blink = Mode.Disabled;
+  transitions = [
+    (Heat, fun _ {on; _} -> on)
+  ]
+}
 
-and heat_goal t goal =
-  let* _ = manage_server t in
-  let current = Temperature.get t in
-  if should_keep_heating current goal then (
-    show_temperature current ;
-    log_temperature goal current true ;
-    let* () = heat_once () in
-    heat_goal t goal
-  )
-  else (
-    Printf.printf "NOW WAITING\n" ;
-    wait_goal t goal
-  )
+let heat_state = {
+  mode = Mode.Active;
+  blink = Mode.Idle;
+  transitions = [
+    (Off, fun _ {on; _} -> not on);
+    (Wait, fun cur {goal; _} -> cur >= goal)
+  ]
+}
 
-and wait_goal t goal =
-  let* _ = manage_server t in
-  let current = Temperature.get t in
-  if should_keep_waiting current goal then (
-    show_temperature current ;
-    log_temperature goal current false ;
-    Io.select Mode.Idle ;
-    let* _ = Io.sleep ~blink_mode:Mode.Disabled 60. in
-    wait_goal t goal
-  )
-  else (
-    Printf.printf "NOW HEATING\n" ;
-    heat_goal t goal
-  )
+let wait_state = {
+  mode = Mode.Idle;
+  blink = Mode.Disabled;
+  transitions= [
+    (Off, fun _ {on; _} -> not on);
+    (Heat, fun cur {goal; _} -> cur < goal -. margin)
+  ]
+}
+
+let automaton = [(Off, off_state); (Heat, heat_state); (Wait, wait_state)]
+
+let rec exec t state =
+  let descr = List.assoc state automaton in
+  let cur = Temperature.get t in
+  let server_state = Server.state () in
+  match List.find_opt (fun (_, f) -> f cur server_state) descr.transitions with
+  | Some (next, _) ->
+    Printf.printf "Transition to %s\n%!" (show_state_id next);
+    exec t next (* transition to another state *)
+  | None ->
+    (* show_temperature cur ; *)
+    (* log_temperature state.goal cur (state = Heat) ; *)
+    Io.select descr.mode ;
+    let* () = Io.sleep ~blink_mode:descr.blink quantum in
+    exec t state
 
 let test_routine () =
   Io.select Active ;
@@ -102,7 +100,7 @@ let usage () =
 
 let launch_daemon driver initial_goal =
   Lwt_main.run
-    (Lwt.join [Server.init initial_goal driver; heat_goal driver initial_goal])
+    (Lwt.join [Server.init initial_goal driver; exec driver Wait])
 
 let default_server_temperature = 18.
 

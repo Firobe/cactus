@@ -8,7 +8,7 @@ let reset () =
   write Mode.Active Low ; write Mode.Disabled Low ; write Mode.Idle Low
 
 let select m =
-  Printf.printf "Switching to mode %s\n%!" (Mode.show m) ;
+  (* Printf.printf "Switching to mode %s\n%!" (Mode.show m) ; *)
   reset () ;
   write m High
 

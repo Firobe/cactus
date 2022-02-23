@@ -1,7 +1,8 @@
 open Lwt
 
+type state = {on : bool; goal : float}
+
 let current_goal = ref 0.
-let goal_has_changed = ref false
 let currently_enabled = ref true
 
 let validate_temperature v =
@@ -23,7 +24,6 @@ let handle_message temp msg =
       match validate_temperature v with
       | Result.Ok goal ->
         if !current_goal <> goal then (
-          goal_has_changed := true ;
           Printf.printf "Received a new goal: %g\n%!" goal ;
           current_goal := goal ;
           `Reply "Goal changed" )
@@ -99,14 +99,7 @@ let accept_connection temp conn =
   Printf.printf "New connection\n%!" ;
   return_unit
 
-let has_changed () =
-  let old = !goal_has_changed in
-  goal_has_changed := false ;
-  old
-
-let get_goal () = !current_goal
-
-let get_status () = !currently_enabled
+let state () = {on = !currently_enabled; goal = !current_goal}
 
 let init goal temp =
   current_goal := goal ;
