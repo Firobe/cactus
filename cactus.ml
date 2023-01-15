@@ -113,7 +113,8 @@ struct
   let launch_daemon initial_goal =
     let driver = Temp.init () in
     let io = get_io () in
-    Lwt_main.run (Lwt.choose [ S.init initial_goal driver; exec driver io Wait ])
+    Lwt_main.run
+      (Lwt.choose [ S.init initial_goal driver; exec driver io Wait ])
 end
 
 let usage () =

@@ -69,22 +69,34 @@ module Make (Temp : Signatures.Temperature) = struct
     | _ -> r (`Method_not_allowed, "Method not allowed on this endpoint")
 
   let state () = { on = !power; goal = !goal }
-  let port = 8000
+  let port = 2713
+
+  let read_password () =
+    let chan = open_in "password" in
+    let v = input_line chan |> String.trim in
+    close_in chan;
+    v
 
   let init g temp =
     goal := g;
+    let password = read_password () in
     let callback _conn req body =
-      let target = Request.uri req |> Uri.path in
-      let meth = Request.meth req in
-      let* body = Cohttp_lwt.Body.to_string body in
-      let* status, body =
-        match Routes.(match' (one_of routes) ~target) with
-        | FullMatch s | MatchWithTrailingSlash s -> serve temp s meth body
-        | NoMatch ->
-            Lwt.return
-              (`Bad_request, Printf.sprintf "No matching route for %s" target)
-      in
-      Server.respond_string ~status ~body ()
+      let header = Request.headers req in
+      match Cohttp.Header.get_authorization header with
+      | Some (`Basic ("virgile", pass)) when pass = password ->
+          let target = Request.uri req |> Uri.path in
+          let meth = Request.meth req in
+          let* body = Cohttp_lwt.Body.to_string body in
+          let* status, body =
+            match Routes.(match' (one_of routes) ~target) with
+            | FullMatch s | MatchWithTrailingSlash s -> serve temp s meth body
+            | NoMatch ->
+                Lwt.return
+                  ( `Bad_request,
+                    Printf.sprintf "No matching route for %s" target )
+          in
+          Server.respond_string ~status ~body ()
+      | _ -> Server.respond_need_auth ~auth:(`Basic "cactus") ()
     in
     let tls_config =
       ( `Crt_file_path "self.crt",
