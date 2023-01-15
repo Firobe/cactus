@@ -1,6 +1,5 @@
 open Lwt
-
-type state = { on : bool; goal : float }
+open Signatures
 
 module Make (Temp : Signatures.Temperature) = struct
   let current_goal = ref 0.
@@ -12,11 +11,6 @@ module Make (Temp : Signatures.Temperature) = struct
     | Some goal when goal < 0. -> Result.error (`Msg "Must be positive")
     | Some goal -> Result.ok goal
     | None -> Result.error (`Msg "Float expected")
-
-  let motd =
-    ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>\n\
-     > Cactus heater server | Please don't be evil ! >\n\
-     >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 
   let ( let* ) = Lwt.bind
 
@@ -115,7 +109,7 @@ module Make (Temp : Signatures.Temperature) = struct
     current_goal := goal;
     let* sock = create_socket () in
     let rec serve () =
-      Printf.printf "Listening...\n%!";
+      Printf.printf "Listening (TELNET) on port %d...\n%!" port;
       let* conn = Lwt_unix.accept sock in
       let* _ = accept_connection temp conn in
       serve ()

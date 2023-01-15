@@ -21,7 +21,7 @@ type state_id = Wait | Off | Heat [@@deriving show]
 type state_descr = {
   mode : Mode.t;
   blink : Mode.t;
-  transitions : (state_id * (float -> Server.state -> bool)) list;
+  transitions : (state_id * (float -> Signatures.state -> bool)) list;
 }
 
 let off_state =
@@ -56,8 +56,12 @@ let wait_state =
 let automaton = [ (Off, off_state); (Heat, heat_state); (Wait, wait_state) ]
 let default_server_temperature = 18.
 
-module Make (Temp : Signatures.Temperature) (Gpio : Signatures.IO) = struct
-  module S = Server.Make (Temp)
+module Make
+    (Server : Signatures.Server)
+    (Temp : Signatures.Temperature)
+    (Gpio : Signatures.IO) =
+struct
+  module S = Server (Temp)
 
   let rec exec t io state =
     let descr = List.assoc state automaton in
@@ -109,15 +113,21 @@ module Make (Temp : Signatures.Temperature) (Gpio : Signatures.IO) = struct
   let launch_daemon initial_goal =
     let driver = Temp.init () in
     let io = get_io () in
-    Lwt_main.run (Lwt.join [ S.init initial_goal driver; exec driver io Wait ])
+    Lwt_main.run (Lwt.choose [ S.init initial_goal driver; exec driver io Wait ])
 end
 
 let usage () =
   Printf.printf "Usage: cactus server [INIT_Temp]\n";
   Printf.printf "       cactus test\n";
-  Printf.printf "Set CACTUS_DUMMY=y to use dummy IO\n"
+  Printf.printf "Set CACTUS_DUMMY=y to use dummy IO\n";
+  Printf.printf "Set CACTUS_TELNET=y to use the old unsecure telnet interface\n"
 
 let main =
+  let server =
+    match Sys.getenv_opt "CACTUS_TELNET" with
+    | Some "y" -> (module Telnet.Make : Signatures.Server)
+    | _ -> (module Rest.Make)
+  in
   let temp, io =
     match Sys.getenv_opt "CACTUS_DUMMY" with
     | Some "y" ->
@@ -127,7 +137,8 @@ let main =
   in
   let module T = (val temp) in
   let module I = (val io) in
-  let module Main = Make (T) (I) in
+  let module S = (val server) in
+  let module Main = Make (S) (T) (I) in
   let argc = Array.length Sys.argv in
   if argc >= 2 then
     match Sys.argv.(1) with

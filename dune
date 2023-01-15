@@ -1,6 +1,6 @@
 (executable
  (name cactus)
- (libraries gpiod i2c lwt lwt.unix)
+ (libraries gpiod i2c lwt lwt.unix cohttp routes cohttp-lwt-unix)
  (public_name cactus)
  (preprocess
   (pps ppx_deriving.show)))
