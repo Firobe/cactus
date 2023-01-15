@@ -6,4 +6,4 @@ let of_string = function
   | "Disabled" | "disabled" | "off" | "0" -> Disabled
   | s -> failwith ("Wrong mode: " ^ s)
 
-let get_pin = function Active -> 1 | Idle -> 2 | Disabled -> 3
+let get_pin = function Active -> 18 | Idle -> 27 | Disabled -> 22

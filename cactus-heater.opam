@@ -8,7 +8,7 @@ license: "MIT"
 homepage: "https://github.com/Firobe/cactus"
 bug-reports: "https://github.com/Firobe/cactus/issues"
 depends: [
-  "wiringpi"
+  "gpiod"
   "ppx_deriving"
   "lwt"
   "i2c"

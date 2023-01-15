@@ -1,6 +1,6 @@
 (executable
  (name cactus)
- (libraries WiringPi i2c lwt lwt.unix)
+ (libraries gpiod i2c lwt lwt.unix)
  (public_name cactus)
  (preprocess
   (pps ppx_deriving.show)))

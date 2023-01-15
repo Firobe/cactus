@@ -13,7 +13,7 @@
     (synopsis "Heater regulator")
     (description "Heater regulator")
     (depends
-        wiringpi
+        gpiod
         ppx_deriving
         lwt
         i2c
