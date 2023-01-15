@@ -54,78 +54,90 @@ let wait_state =
   }
 
 let automaton = [ (Off, off_state); (Heat, heat_state); (Wait, wait_state) ]
-
-let rec exec t io state =
-  let descr = List.assoc state automaton in
-  let* cur = Temperature.get t in
-  let server_state = Server.state () in
-  match List.find_opt (fun (_, f) -> f cur server_state) descr.transitions with
-  | Some (next, _) ->
-      Printf.printf "Transition to %s\n%!" (show_state_id next);
-      exec t io next (* transition to another state *)
-  | None ->
-      (* show_temperature cur ; *)
-      (* log_temperature state.goal cur (state = Heat) ; *)
-      Io.select io descr.mode;
-      let* () = Io.sleep io ~blink_mode:descr.blink quantum in
-      exec t io state
-
-let test_routine io =
-  Io.select io Active;
-  let* _ = Io.sleep io 2. in
-  Io.select io Idle;
-  let* _ = Io.sleep io 2. in
-  Io.select io Disabled;
-  let* _ = Io.sleep io 2. in
-  Io.select io Active;
-  let* _ = Io.sleep io 0.1 in
-  Io.select io Idle;
-  let* _ = Io.sleep io 0.1 in
-  Io.select io Active;
-  let* _ = Io.sleep io 0.1 in
-  Io.select io Idle;
-  let* _ = Io.sleep io 0.1 in
-  Io.select io Active;
-  let* _ = Io.sleep io 0.1 in
-  Io.select io Idle;
-  let* _ = Io.sleep io 0.1 in
-  let* temp = Temperature.init () |> Temperature.get in
-  if temp < 6. || temp > 30. then Io.select io Disabled else Io.reset io;
-  Lwt.return_unit
-
-let usage () =
-  Printf.printf "Usage: cactus select [on|off]\n";
-  Printf.printf "       cactus server [INIT_TEMPERATURE]\n";
-  Printf.printf "       cactus read\n";
-  Printf.printf "       cactus test\n"
-
-let launch_daemon driver io initial_goal =
-  Lwt_main.run
-    (Lwt.join [ Server.init initial_goal driver; exec driver io Wait ])
-
 let default_server_temperature = 18.
 
-let main =
-  let io =
-    match Io.init () with
+module Make (Temp : Signatures.Temperature) (Gpio : Signatures.IO) = struct
+  module S = Server.Make (Temp)
+
+  let rec exec t io state =
+    let descr = List.assoc state automaton in
+    let* cur = Temp.get t in
+    let server_state = S.state () in
+    match
+      List.find_opt (fun (_, f) -> f cur server_state) descr.transitions
+    with
+    | Some (next, _) ->
+        Printf.printf "Transition to %s\n%!" (show_state_id next);
+        exec t io next (* transition to another state *)
+    | None ->
+        (* show_Temp cur ; *)
+        (* log_Temp state.goal cur (state = Heat) ; *)
+        Gpio.select io descr.mode;
+        let* () = Gpio.sleep io ~blink_mode:descr.blink quantum in
+        exec t io state
+
+  let get_io () =
+    match Gpio.init () with
     | Ok t -> t
     | Error (`Msg msg) ->
         failwith (Printf.sprintf "Couldn't open GPIO: %s\n" msg)
+
+  let test_routine () =
+    let io = get_io () in
+    Gpio.select io Active;
+    let* _ = Gpio.sleep io 2. in
+    Gpio.select io Idle;
+    let* _ = Gpio.sleep io 2. in
+    Gpio.select io Disabled;
+    let* _ = Gpio.sleep io 2. in
+    Gpio.select io Active;
+    let* _ = Gpio.sleep io 0.1 in
+    Gpio.select io Idle;
+    let* _ = Gpio.sleep io 0.1 in
+    Gpio.select io Active;
+    let* _ = Gpio.sleep io 0.1 in
+    Gpio.select io Idle;
+    let* _ = Gpio.sleep io 0.1 in
+    Gpio.select io Active;
+    let* _ = Gpio.sleep io 0.1 in
+    Gpio.select io Idle;
+    let* _ = Gpio.sleep io 0.1 in
+    let* temp = Temp.init () |> Temp.get in
+    if temp < 6. || temp > 30. then Gpio.select io Disabled else Gpio.reset io;
+    Lwt.return_unit
+
+  let launch_daemon initial_goal =
+    let driver = Temp.init () in
+    let io = get_io () in
+    Lwt_main.run (Lwt.join [ S.init initial_goal driver; exec driver io Wait ])
+end
+
+let usage () =
+  Printf.printf "Usage: cactus server [INIT_Temp]\n";
+  Printf.printf "       cactus test\n";
+  Printf.printf "Set CACTUS_DUMMY=y to use dummy IO\n"
+
+let main =
+  let temp, io =
+    match Sys.getenv_opt "CACTUS_DUMMY" with
+    | Some "y" ->
+        ( (module Dummy.Temperature : Signatures.Temperature),
+          (module Dummy.IO : Signatures.IO) )
+    | _ -> ((module Temperature), (module Io))
   in
+  let module T = (val temp) in
+  let module I = (val io) in
+  let module Main = Make (T) (I) in
   let argc = Array.length Sys.argv in
   if argc >= 2 then
     match Sys.argv.(1) with
-    | "select" ->
-        if argc <> 3 then usage ()
-        else Sys.argv.(2) |> Mode.of_string |> Io.select io
     | "server" ->
-        if argc = 2 then
-          launch_daemon (Temperature.init ()) io default_server_temperature
+        if argc = 2 then Main.launch_daemon default_server_temperature
         else if argc = 3 then
           match float_of_string_opt Sys.argv.(2) with
           | None -> failwith "Temperature must be a float"
-          | Some goal -> launch_daemon (Temperature.init ()) io goal
+          | Some goal -> Main.launch_daemon goal
         else usage ()
-    | "test" -> Lwt_main.run (test_routine io)
+    | "test" -> Lwt_main.run (Main.test_routine ())
     | _ -> failwith "Unknown command"
   else usage ()
