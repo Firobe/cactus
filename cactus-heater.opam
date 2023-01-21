@@ -9,9 +9,14 @@ homepage: "https://github.com/Firobe/cactus"
 bug-reports: "https://github.com/Firobe/cactus/issues"
 depends: [
   "gpiod"
+  "cohttp"
+  "routes"
+  "cohttp-lwt-unix"
   "ppx_deriving"
   "lwt"
   "i2c"
+  "lwt_ssl"
+  "tls"
   "dune" {>= "2.8" & build}
   "odoc" {with-doc}
 ]

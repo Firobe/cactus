@@ -14,9 +14,14 @@
     (description "Heater regulator")
     (depends
         gpiod
+        cohttp
+        routes
+        cohttp-lwt-unix
         ppx_deriving
         lwt
         i2c
+        lwt_ssl
+        tls
         (dune :build)
     )
 )
