@@ -93,9 +93,8 @@ let offset t = t.offset
 
 let init () =
   let i2c_address = 0x77 in
-  let fd = Unix.(openfile "/dev/i2c-1" [ O_RDWR ] 0x644) in
   let i2c =
-    match I2c.set_address fd i2c_address with
+    match I2c.open_device "/dev/i2c-1" i2c_address with
     | Result.Ok x -> x
     | Result.Error _ -> failwith "Cannot access to temperature sensor"
   in
