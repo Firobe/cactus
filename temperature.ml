@@ -16,15 +16,15 @@ type calibration = {
   md : Int16.t;
 }
 
-type t = { i2c : I2c.t; cal : calibration; mutable offset : float }
+type t = { i2c : I2c_unix.t; cal : calibration; mutable offset : float }
 
 let get_ok = function Ok x -> x | Error _ -> failwith "Couldn't operate"
 
 (* TODO read_word with correct endianness *)
 
 let read_word_b i2c n =
-  let msb = I2c.read_byte_data i2c (Uint8.of_int n) |> get_ok in
-  let lsb = I2c.read_byte_data i2c (Uint8.of_int (n + 1)) |> get_ok in
+  let msb = I2c_unix.read_byte_data i2c (Uint8.of_int n) |> get_ok in
+  let lsb = I2c_unix.read_byte_data i2c (Uint8.of_int (n + 1)) |> get_ok in
   Uint16.(shift_left (of_uint8 msb) 8 + of_uint8 lsb)
 
 let calibrate i2c =
@@ -65,7 +65,7 @@ let _show_cal cal =
 
 let get_new_raw_temperature i2c =
   assert (
-    I2c.write_byte_data i2c (Uint8.of_int 0xF4) (Uint8.of_int 0x2E)
+    I2c_unix.write_byte_data i2c (Uint8.of_int 0xF4) (Uint8.of_int 0x2E)
     |> get_ok = ());
   let* () = Lwt_unix.sleep 0.01 in
   Lwt.return @@ read_word_b i2c 0xF6
@@ -94,7 +94,7 @@ let offset t = t.offset
 let init () =
   let i2c_address = 0x77 in
   let i2c =
-    match I2c.open_device "/dev/i2c-1" i2c_address with
+    match I2c_unix.open_device "i2c-1" i2c_address with
     | Result.Ok x -> x
     | Result.Error _ -> failwith "Cannot access to temperature sensor"
   in

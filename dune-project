@@ -19,7 +19,7 @@
         cohttp-lwt-unix
         ppx_deriving
         lwt
-        i2c
+        i2c-unix
         lwt_ssl
         tls
         (dune :build)
