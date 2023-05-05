@@ -1,0 +1,3 @@
+pin-depends: [
+  [ "i2c-unix.dev" "git+https://github.com/Firobe/i2c-unix.git"]
+]

@@ -35,3 +35,6 @@ build: [
   ]
 ]
 dev-repo: "git+https://github.com/Firobe/cactus.git"
+pin-depends: [
+  [ "i2c-unix.dev" "git+https://github.com/Firobe/i2c-unix.git"]
+]
