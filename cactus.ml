@@ -112,11 +112,11 @@ struct
     if temp < 6. || temp > 30. then Gpio.select io Disabled else Gpio.reset io;
     Lwt.return_unit
 
-  let launch_daemon initial_goal =
+  let launch_daemon initial_goal certs =
     let driver = Temp.init () in
     let io = get_io () in
     Lwt_main.run
-      (Lwt.choose [ S.init initial_goal driver; exec driver io Wait ])
+      (Lwt.choose [ S.init certs initial_goal driver; exec driver io Wait ])
 end
 
 open Cmdliner
@@ -142,8 +142,18 @@ let dummy_io =
   let env = Cmd.Env.info "CACTUS_DUMMY" in
   Arg.(value & flag & info [ "dummy" ] ~doc ~env)
 
+let cert =
+  let doc = "TLS certificate for the REST server" in
+  Arg.(value & opt (some file) None & info [ "c"; "cert" ] ~doc)
+
+let a = Arg.some'
+
+let privkey =
+  let doc = "TLS private key for the REST server" in
+  Arg.(value & opt (some file) None & info [ "k"; "key" ] ~doc)
+
 module type S = sig
-  val launch_daemon : float -> unit
+  val launch_daemon : float -> (string * string) option -> unit
   val test_routine : unit -> unit
 end
 
@@ -164,16 +174,28 @@ let make_main ~telnet ~dummy_io =
   let module Main = Make (S) (T) (I) in
   (module Main : S)
 
-let server_go temp telnet dummy_io =
+let server_go temp telnet dummy_io cert key =
   let module Main = (val make_main ~telnet ~dummy_io) in
-  Main.launch_daemon temp
+  let certs =
+    match (telnet, cert, key) with
+    | false, Some cert, Some key -> Some (cert, key)
+    | false, _, _ ->
+        failwith "When using the REST server, both -k and -c must be given"
+    | true, None, None -> None
+    | true, _, _ ->
+        Printf.printf "warn: -k and -c are ignored when using telnet\n";
+        None
+  in
+  Main.launch_daemon temp certs
 
 let test_go telnet dummy_io =
   let module Main = (val make_main ~telnet ~dummy_io) in
   Main.test_routine ()
 
 let server_cmd =
-  let t = Term.(const server_go $ temperature $ telnet $ dummy_io) in
+  let t =
+    Term.(const server_go $ temperature $ telnet $ dummy_io $ cert $ privkey)
+  in
   let doc = "launch daemon" in
   let info = Cmd.info "server" ~doc in
   Cmd.v info t

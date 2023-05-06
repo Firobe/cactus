@@ -77,7 +77,8 @@ module Make (Temp : Signatures.Temperature) = struct
     close_in chan;
     v
 
-  let init g temp =
+  let init certs g temp =
+    let cert, key = Option.get certs in
     goal := g;
     let password = read_password () in
     let callback _conn req body =
@@ -99,10 +100,7 @@ module Make (Temp : Signatures.Temperature) = struct
       | _ -> Server.respond_need_auth ~auth:(`Basic "cactus") ()
     in
     let tls_config =
-      ( `Crt_file_path "self.crt",
-        `Key_file_path "self.key",
-        `No_password,
-        `Port port )
+      (`Crt_file_path cert, `Key_file_path key, `No_password, `Port port)
     in
     Printf.printf "Listening (REST) on port %d...\n%!" port;
     Server.create ~mode:(`TLS tls_config) (Server.make ~callback ())

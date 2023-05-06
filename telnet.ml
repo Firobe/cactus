@@ -105,7 +105,7 @@ module Make (Temp : Signatures.Temperature) = struct
 
   let state () = { on = !currently_enabled; goal = !current_goal }
 
-  let init goal temp =
+  let init _ goal temp =
     current_goal := goal;
     let* sock = create_socket () in
     let rec serve () =

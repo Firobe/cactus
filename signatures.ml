@@ -19,6 +19,6 @@ end
 type state = { on : bool; goal : float }
 
 module type Server = functor (Temp : Temperature) -> sig
-  val init : float -> Temp.t -> unit Lwt.t
+  val init : (string * string) option -> float -> Temp.t -> unit Lwt.t
   val state : unit -> state
 end
