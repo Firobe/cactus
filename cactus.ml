@@ -87,6 +87,8 @@ struct
         failwith (Printf.sprintf "Couldn't open GPIO: %s\n" msg)
 
   let test_routine () =
+    Lwt_main.run
+    @@
     let io = get_io () in
     Gpio.select io Active;
     let* _ = Gpio.sleep io 2. in
@@ -117,39 +119,75 @@ struct
       (Lwt.choose [ S.init initial_goal driver; exec driver io Wait ])
 end
 
+open Cmdliner
+
 let usage () =
   Printf.printf "Usage: cactus server [INIT_Temp]\n";
   Printf.printf "       cactus test\n";
   Printf.printf "Set CACTUS_DUMMY=y to use dummy IO\n";
   Printf.printf "Set CACTUS_TELNET=y to use the old unsecure telnet interface\n"
 
-let main =
+let temperature =
+  let doc = "Initial temperature goal" in
+  Arg.(
+    value & pos 0 float default_server_temperature & info [] ~docv:"TEMP" ~doc)
+
+let telnet =
+  let doc = "Use old insecure telnet interface" in
+  let env = Cmd.Env.info "CACTUS_TELNET" in
+  Arg.(value & flag & info [ "telnet" ] ~doc ~env)
+
+let dummy_io =
+  let doc = "Use dummy I/O for GPIO and I2C (for testing)" in
+  let env = Cmd.Env.info "CACTUS_DUMMY" in
+  Arg.(value & flag & info [ "dummy" ] ~doc ~env)
+
+module type S = sig
+  val launch_daemon : float -> unit
+  val test_routine : unit -> unit
+end
+
+let make_main ~telnet ~dummy_io =
   let server =
-    match Sys.getenv_opt "CACTUS_TELNET" with
-    | Some "y" -> (module Telnet.Make : Signatures.Server)
-    | _ -> (module Rest.Make)
+    if telnet then (module Telnet.Make : Signatures.Server)
+    else (module Rest.Make)
   in
   let temp, io =
-    match Sys.getenv_opt "CACTUS_DUMMY" with
-    | Some "y" ->
-        ( (module Dummy.Temperature : Signatures.Temperature),
-          (module Dummy.IO : Signatures.IO) )
-    | _ -> ((module Temperature), (module Io))
+    if dummy_io then
+      ( (module Dummy.Temperature : Signatures.Temperature),
+        (module Dummy.IO : Signatures.IO) )
+    else ((module Temperature), (module Io))
   in
   let module T = (val temp) in
   let module I = (val io) in
   let module S = (val server) in
   let module Main = Make (S) (T) (I) in
-  let argc = Array.length Sys.argv in
-  if argc >= 2 then
-    match Sys.argv.(1) with
-    | "server" ->
-        if argc = 2 then Main.launch_daemon default_server_temperature
-        else if argc = 3 then
-          match float_of_string_opt Sys.argv.(2) with
-          | None -> failwith "Temperature must be a float"
-          | Some goal -> Main.launch_daemon goal
-        else usage ()
-    | "test" -> Lwt_main.run (Main.test_routine ())
-    | _ -> failwith "Unknown command"
-  else usage ()
+  (module Main : S)
+
+let server_go temp telnet dummy_io =
+  let module Main = (val make_main ~telnet ~dummy_io) in
+  Main.launch_daemon temp
+
+let test_go telnet dummy_io =
+  let module Main = (val make_main ~telnet ~dummy_io) in
+  Main.test_routine ()
+
+let server_cmd =
+  let t = Term.(const server_go $ temperature $ telnet $ dummy_io) in
+  let doc = "launch daemon" in
+  let info = Cmd.info "server" ~doc in
+  Cmd.v info t
+
+let test_cmd =
+  let t = Term.(const test_go $ telnet $ dummy_io) in
+  let doc = "test routine (make sure heater is off)" in
+  let info = Cmd.info "test" ~doc in
+  Cmd.v info t
+
+let cmd =
+  let doc = "smart heater server for my home" in
+  let info = Cmd.info "cactus" ~doc in
+  Cmd.group info [ server_cmd; test_cmd ]
+
+let main () = exit (Cmd.eval cmd)
+let () = main ()

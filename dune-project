@@ -14,6 +14,7 @@
     (description "Heater regulator")
     (depends
         gpiod
+        cmdliner
         cohttp
         routes
         cohttp-lwt-unix
