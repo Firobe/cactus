@@ -1,0 +1,79 @@
+body {
+  background: #F5A9B8;
+  padding: 0 24px;
+  color: white; /* Change my color to yellow */
+  height: 100vh;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+    flex-direction: column;
+  justify-content: space-evenly;
+  align-items: center;
+  font-family: sans-serif;
+  font-size: 170%;
+}
+.block {
+  background: #5BCEFA;
+  border-radius: 25px;
+  padding: 20px;
+  height: 250px; 
+}
+h2 {
+    color: #705bfa;
+    text-align: center;
+}
+.data {
+    color: #705bfa;
+    display: inline;
+}
+button {
+  appearance: none;
+  background-color: #2ea44f;
+  border: 1px solid rgba(27, 31, 35, .15);
+  border-radius: 6px;
+  box-shadow: rgba(27, 31, 35, .1) 0 1px 0;
+  box-sizing: border-box;
+  color: #fff;
+  cursor: pointer;
+  display: inline-block;
+  line-height: 20px;
+  padding: 6px 16px;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  user-select: none;
+  touch-action: manipulation;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+button:focus:not(:focus-visible):not(.focus-visible) {
+  box-shadow: none;
+  outline: none;
+}
+
+button:hover {
+  background-color: #2c974b;
+}
+
+button:focus {
+  box-shadow: rgba(46, 164, 79, .4) 0 0 0 3px;
+  outline: none;
+}
+
+button:disabled {
+  background-color: #94d3a2;
+  border-color: rgba(27, 31, 35, .1);
+  color: rgba(255, 255, 255, .8);
+  cursor: default;
+}
+
+button:active {
+  background-color: #298e46;
+  box-shadow: rgba(20, 70, 32, .2) 0 1px 0 inset;
+}
+
+input {
+    margin: 10px;
+    max-width: 20%;
+}
