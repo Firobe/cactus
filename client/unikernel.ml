@@ -158,7 +158,8 @@ struct
   let callback client assets _conn req body =
     let ( let** ) = Lwt_result.bind in
     let password = Key_gen.password () in
-    match Cohttp.Header.get_authorization (Cohttp.Request.headers req) with
+    let headers = Cohttp.Request.headers req in
+    match Cohttp.Header.get_authorization headers with
     | Some (`Basic ("virgile", pass)) when pass = password -> (
         let uri = Cohttp.Request.uri req |> Uri.canonicalize in
         let respond_render state =
@@ -166,7 +167,11 @@ struct
           Server.respond ~status:`OK ~body:(`String body) ()
         in
         let redirect_home () =
-          let base = Uri.with_path uri "" in
+          let base =
+            match Cohttp.Header.get headers "X-Forwarded-Host" with
+            | Some base -> Uri.of_string base
+            | None -> Uri.with_path uri ""
+          in
           Server.respond_redirect ~uri:base ()
         in
         let* res =
