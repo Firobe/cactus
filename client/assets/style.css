@@ -1,30 +1,31 @@
 body {
-  background: #F5A9B8;
+  /* background: #F5A9B8; */
+  background: #521b96;
   padding: 0 24px;
-  color: white; /* Change my color to yellow */
+  color: #f508f7;
   height: 100vh;
   margin: 0;
   display: flex;
   flex-wrap: wrap;
-    flex-direction: column;
+  flex-direction: column;
   justify-content: space-evenly;
   align-items: center;
   font-family: sans-serif;
   font-size: 170%;
 }
 .block {
-  background: #5BCEFA;
+  background: #031250;
   border-radius: 25px;
   padding: 20px;
   height: 250px; 
 }
 h2 {
-    color: #705bfa;
-    text-align: center;
+  color: #f508f7;
+  text-align: center;
 }
 .data {
-    color: #705bfa;
-    display: inline;
+  color: #f70883;
+  display: inline;
 }
 button {
   appearance: none;
@@ -74,6 +75,6 @@ button:active {
 }
 
 input {
-    margin: 10px;
-    max-width: 20%;
+  margin: 10px;
+  max-width: 20%;
 }
