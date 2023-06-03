@@ -79,6 +79,8 @@ module Page (Assets : Mirage_kv.RO) = struct
   let of_power b =
     div ~a:[ a_class [ "data" ] ] [ txt (if b then "on" else "off") ]
 
+  let banner () = div [ img ~src:"cactus.png" ~alt:"minimalist cactus" () ]
+
   let status st =
     div
       ~a:[ a_class [ "block" ] ]
@@ -94,6 +96,9 @@ module Page (Assets : Mirage_kv.RO) = struct
 
   let change_form_name = "new-temp"
 
+  (* Without trailing point when whole *)
+  let string_of_float x = Printf.sprintf "%g" x
+
   let change_temp st =
     form
       ~a:[ a_method `Post; a_action "change" ]
@@ -105,7 +110,7 @@ module Page (Assets : Mirage_kv.RO) = struct
               a_name change_form_name;
               a_input_type `Number;
               a_step (Some 0.1);
-              a_value (Float.to_string st.goal);
+              a_value (string_of_float st.goal);
             ]
           ();
       ]
@@ -122,12 +127,10 @@ module Page (Assets : Mirage_kv.RO) = struct
       [ h2 [ txt "Controls" ]; change_temp st; switch st ]
 
   let contents = function
-    | `Home st -> [ status st; controls st ]
+    | `Home st -> [ banner (); status st; controls st ]
     | `Error msg -> [ p [ b [ txt "SERVER ERROR: " ]; txt msg ] ]
 
-  let page assets st =
-    let* css = Assets.get assets (Mirage_kv.Key.v "style.css") in
-    let css = Result.get_ok css in
+  let page st =
     Lwt.return
     @@ html
          (head
@@ -141,12 +144,12 @@ module Page (Assets : Mirage_kv.RO) = struct
                     a_content "width=device-width,initial-scale=1.0";
                   ]
                 ();
-              style [ txt css ];
+              link ~rel:[ `Stylesheet ] ~href:"style.css" ();
             ])
          (body (contents st))
 
-  let render assets st =
-    let* page = page assets st in
+  let render st =
+    let* page = page st in
     Lwt.return (Format.asprintf "%a" (pp ()) page)
 end
 
@@ -154,6 +157,12 @@ module Dispatch (Server : SERVER) (Client : CLIENT) (Assets : Mirage_kv.RO) =
 struct
   module S = State (Client)
   module P = Page (Assets)
+
+  let find_asset assets uri =
+    let r = Assets.get assets (Mirage_kv.Key.v uri) in
+    Lwt_result.map_error
+      (fun e -> `Msg (Format.asprintf "%a" Assets.pp_error e))
+      r
 
   let callback client assets _conn req body =
     let ( let** ) = Lwt_result.bind in
@@ -163,7 +172,7 @@ struct
     | Some (`Basic ("virgile", pass)) when pass = password -> (
         let uri = Cohttp.Request.uri req |> Uri.canonicalize in
         let respond_render state =
-          let* body = P.render assets state in
+          let* body = P.render state in
           Server.respond ~status:`OK ~body:(`String body) ()
         in
         let redirect_home () =
@@ -198,7 +207,10 @@ struct
               let** temp = S.parse_float temp |> Lwt.return in
               let** () = S.change client temp in
               redirect_home () |> Lwt_result.ok
-          | _ -> respond_render (`Error "Page not found") |> Lwt_result.ok
+          | uri ->
+              let** data = find_asset assets uri in
+              Server.respond ~status:`OK ~body:(`String data) ()
+              |> Lwt_result.ok
         in
         match res with
         | Ok x -> Lwt.return x
