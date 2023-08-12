@@ -112,11 +112,27 @@ struct
     if temp < 6. || temp > 30. then Gpio.select io Disabled else Gpio.reset io;
     Lwt.return_unit
 
+  let error_loop io =
+    Gpio.select io Disabled;
+    let rec loop () =
+      let* _ =
+        Gpio.sleep io ~blink_interval:0.3 ~blink_duration:0.3
+          ~blink_mode:Disabled 100.
+      in
+      loop ()
+    in
+    Lwt_main.run (loop ())
+
   let launch_daemon initial_goal certs =
-    let driver = Temp.init () in
     let io = get_io () in
-    Lwt_main.run
-      (Lwt.choose [ S.init certs initial_goal driver; exec driver io Wait ])
+    try
+      let driver = Temp.init () in
+      Lwt_main.run
+        (Lwt.choose [ S.init certs initial_goal driver; exec driver io Wait ])
+    with e ->
+      Printf.eprintf "Exception raised during loop!\n%s%!"
+        (Printexc.to_string e);
+      error_loop io
 end
 
 open Cmdliner

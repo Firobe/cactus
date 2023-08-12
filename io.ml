@@ -57,17 +57,18 @@ let init () =
 
 let ( let* ) = Lwt.bind
 
-let sleep t ?blink_mode s =
+let sleep t ?blink_mode ?(blink_interval = 0.9) ?(blink_duration = 0.1) s =
   match blink_mode with
   | None -> Lwt_unix.sleep s
   | Some mode ->
+      let sum = blink_interval +. blink_duration in
       let rec aux left =
-        if left < 1. then Lwt_unix.sleep left
+        if left < sum then Lwt_unix.sleep left
         else (
           write t mode High;
-          let* _ = Lwt_unix.sleep 0.1 in
+          let* _ = Lwt_unix.sleep blink_duration in
           write t mode Low;
-          let* _ = Lwt_unix.sleep 0.9 in
-          aux (left -. 1.))
+          let* _ = Lwt_unix.sleep blink_interval in
+          aux (left -. sum))
       in
       aux s

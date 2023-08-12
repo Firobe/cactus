@@ -3,7 +3,10 @@ module IO : Signatures.IO = struct
 
   let init () = Result.ok ()
   let select () _ = ()
-  let sleep () ?blink_mode:_ v = Lwt_unix.sleep v
+
+  let sleep () ?blink_mode:_ ?blink_interval:_ ?blink_duration:_ v =
+    Lwt_unix.sleep v
+
   let reset () = ()
 end
 

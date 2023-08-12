@@ -1,3 +1,5 @@
+(dirs :standard \ client)
+
 (executable
  (name cactus)
  (libraries
