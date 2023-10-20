@@ -18,6 +18,13 @@ let host_port =
   let doc = Key.Arg.info ~doc:"Host of the cactus heater" [ "host-port" ] in
   Key.(create "host_port" Arg.(opt int 2713 doc))
 
+let refresh_interval =
+  let doc =
+    Key.Arg.info ~doc:"Interval (in s) between each fetch of data"
+      [ "refresh-interval" ]
+  in
+  Key.(create "refresh_interval" Arg.(opt int 10 doc))
+
 let password =
   let doc = Key.Arg.info ~doc:"Host of the cactus heater" [ "password" ] in
   Key.(create "password" Arg.(required string doc))
@@ -26,9 +33,11 @@ let assets = crunch "assets"
 
 let main =
   main
-    ~keys:[ key port; key host; key host_port; key password ]
+    ~keys:
+      [ key port; key host; key host_port; key password; key refresh_interval ]
     ~packages:[ package "tyxml" ]
     "Unikernel.Make"
-    (http @-> http_client @-> kv_ro @-> job)
+    (time @-> http @-> http_client @-> kv_ro @-> job)
 
-let () = register "cactus_web" [ main $ server $ client $ assets ]
+let () =
+  register "cactus_web" [ main $ default_time $ server $ client $ assets ]

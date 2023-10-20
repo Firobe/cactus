@@ -5,7 +5,28 @@ module type CLIENT = Cohttp_lwt.S.Client
 
 type state = { power : bool; goal : float; temp : float }
 
-module State (Client : CLIENT) = struct
+module type STATE = sig
+  type client
+  type t
+
+  val create : client -> t
+  val get : t -> state Lwt.t
+  val turn : t -> bool -> (unit, [ `Msg of string ]) Lwt_result.t
+  val change : t -> float -> (unit, [ `Msg of string ]) Lwt_result.t
+  val refresh_loop : t -> 'a Lwt.t
+end
+
+let parse_float x =
+  Float.of_string_opt x
+  |> Option.to_result ~none:(`Msg ("couldn't parse float: " ^ x))
+
+module State (Time : Mirage_time.S) (Client : CLIENT) :
+  STATE with type client = Client.ctx = struct
+  type client = Client.ctx
+  type t = { mutable cached_state : state option; client : Client.ctx }
+
+  let create client = { cached_state = None; client }
+
   let headers () =
     let password = Key_gen.password () in
     let credential = `Basic ("virgile", password) in
@@ -38,10 +59,6 @@ module State (Client : CLIENT) = struct
   let parse_bool x =
     bool_of_string_opt x |> Option.to_result ~none:(`Msg "couldn't parse bool")
 
-  let parse_float x =
-    Float.of_string_opt x
-    |> Option.to_result ~none:(`Msg ("couldn't parse float: " ^ x))
-
   let power client = get_endpoint ~client ~parse:parse_bool "/power"
   let temp client = get_endpoint ~client ~parse:parse_float "/temp"
   let goal client = get_endpoint ~client ~parse:parse_float "/goal"
@@ -58,15 +75,39 @@ module State (Client : CLIENT) = struct
         let msg = "Exception when getting state: " ^ msg in
         Lwt_result.fail (`Msg msg))
 
-  let post client x body =
+  let refresh_cache t =
+    let* state = get t.client in
+    (match state with
+    | Ok state -> t.cached_state <- Some state
+    | Error (`Msg msg) -> Logs.err (fun f -> f "Cannot update cache: %s" msg));
+    Lwt.return_unit
+
+  let rec refresh_loop t =
+    let* () = refresh_cache t in
+    let interval = Key_gen.refresh_interval () |> Duration.of_sec in
+    let* () = Time.sleep_ns interval in
+    refresh_loop t
+
+  let rec get t =
+    match t.cached_state with
+    | Some s -> Lwt.return s
+    | None ->
+        Logs.warn (fun f -> f "State isn't cached, waiting...");
+        let interval = Key_gen.refresh_interval () |> Duration.of_sec in
+        let* () = Time.sleep_ns interval in
+        get t
+
+  let post t x body =
     let body = Cohttp_lwt.Body.of_string body in
     let uri = endpoint x in
     let headers = headers () in
-    let* r = Client.post ~headers ~ctx:client ~body uri in
-    check_error r x
+    let* r = Client.post ~headers ~ctx:t.client ~body uri in
+    let** () = check_error r x in
+    (* Force cache refresh after command *)
+    Lwt_result.ok (refresh_cache t)
 
-  let turn client v = post client "/power" (string_of_bool v)
-  let change client v = post client "/goal" (string_of_float v)
+  let turn t v = post t "/power" (string_of_bool v)
+  let change t v = post t "/goal" (string_of_float v)
 end
 
 module Page (Assets : Mirage_kv.RO) = struct
@@ -153,9 +194,7 @@ module Page (Assets : Mirage_kv.RO) = struct
     Lwt.return (Format.asprintf "%a" (pp ()) page)
 end
 
-module Dispatch (Server : SERVER) (Client : CLIENT) (Assets : Mirage_kv.RO) =
-struct
-  module S = State (Client)
+module Dispatch (S : STATE) (Server : SERVER) (Assets : Mirage_kv.RO) = struct
   module P = Page (Assets)
 
   let find_asset assets uri =
@@ -164,7 +203,7 @@ struct
       (fun e -> `Msg (Format.asprintf "%a" Assets.pp_error e))
       r
 
-  let callback client assets _conn req body =
+  let callback state assets _conn req body =
     let ( let** ) = Lwt_result.bind in
     let password = Key_gen.password () in
     let headers = Cohttp.Request.headers req in
@@ -186,13 +225,13 @@ struct
         let* res =
           match Uri.path uri with
           | "/" ->
-              let** state = S.get client in
+              let* state = S.get state in
               respond_render (`Home state) |> Lwt_result.ok
           | "/on" ->
-              let** () = S.turn client true in
+              let** () = S.turn state true in
               redirect_home () |> Lwt_result.ok
           | "/off" ->
-              let** () = S.turn client false in
+              let** () = S.turn state false in
               redirect_home () |> Lwt_result.ok
           | "/change" ->
               let* form = Cohttp_lwt.Body.to_form body in
@@ -204,8 +243,8 @@ struct
                 |> Option.to_result ~none:(`Msg "form element not found")
                 |> Lwt.return
               in
-              let** temp = S.parse_float temp |> Lwt.return in
-              let** () = S.change client temp in
+              let** temp = parse_float temp |> Lwt.return in
+              let** () = S.change state temp in
               redirect_home () |> Lwt_result.ok
           | uri ->
               let** data = find_asset assets uri in
@@ -217,13 +256,22 @@ struct
         | Error (`Msg msg) -> respond_render (`Error msg))
     | _ -> Server.respond_need_auth ~auth:(`Basic "cactus") ()
 
-  let go client assets = Server.make ~callback:(callback client assets) ()
+  let go state assets = Server.make ~callback:(callback state assets) ()
 end
 
-module Make (Server : SERVER) (Client : CLIENT) (Assets : Mirage_kv.RO) = struct
-  module D = Dispatch (Server) (Client) (Assets)
+module Make
+    (Time : Mirage_time.S)
+    (Server : SERVER)
+    (Client : CLIENT)
+    (Assets : Mirage_kv.RO) =
+struct
+  module S = State (Time) (Client)
+  module D = Dispatch (S) (Server) (Assets)
 
-  let start server client assets =
+  let start () server client assets =
     let port = Key_gen.port () in
-    server (`TCP port) (D.go client assets)
+    let state = S.create client in
+    let dispatch_loop = server (`TCP port) (D.go state assets) in
+    let refresh_loop = S.refresh_loop state in
+    Lwt.all [ dispatch_loop; refresh_loop ]
 end
