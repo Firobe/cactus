@@ -248,7 +248,11 @@ module Dispatch (S : STATE) (Server : SERVER) (Assets : Mirage_kv.RO) = struct
               redirect_home () |> Lwt_result.ok
           | uri ->
               let** data = find_asset assets uri in
-              Server.respond ~status:`OK ~body:(`String data) ()
+              let headers =
+                Cohttp.Header.init_with "Cache-Control"
+                  "public; max-age=31536000"
+              in
+              Server.respond ~headers ~status:`OK ~body:(`String data) ()
               |> Lwt_result.ok
         in
         match res with
