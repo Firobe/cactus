@@ -49,7 +49,6 @@ module State (Time : Mirage_time.S) (Client : CLIENT) :
 
   let get_endpoint ~client ~parse x =
     let uri = endpoint x in
-    Logs.info (fun f -> f "GET %s" (Uri.to_string uri));
     let headers = headers () in
     let* ((_, body) as r) = Client.get ~ctx:client ~headers uri in
     let** () = check_error r x in
