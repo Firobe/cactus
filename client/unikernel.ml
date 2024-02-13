@@ -119,8 +119,6 @@ module Page (Assets : Mirage_kv.RO) = struct
   let of_power b =
     div ~a:[ a_class [ "data" ] ] [ txt (if b then "on" else "off") ]
 
-  let banner () = div [ img ~src:"cactus.png" ~alt:"minimalist cactus" () ]
-
   let status st =
     div
       ~a:[ a_class [ "block" ] ]
@@ -167,7 +165,7 @@ module Page (Assets : Mirage_kv.RO) = struct
       [ h2 [ txt "Controls" ]; change_temp st; switch st ]
 
   let contents = function
-    | `Home st -> [ banner (); status st; controls st ]
+    | `Home st -> [ status st; controls st ]
     | `Error msg -> [ p [ b [ txt "SERVER ERROR: " ]; txt msg ] ]
 
   let page st =
