@@ -69,10 +69,12 @@ module State (Time : Mirage_time.S) (Client : CLIENT) :
         let** goal = goal client in
         let** temp = temp client in
         Lwt_result.return { power; goal; temp })
-      (fun exn ->
-        let msg = Printexc.to_string exn in
-        let msg = "Exception when getting state: " ^ msg in
-        Lwt_result.fail (`Msg msg))
+      (function
+        | Out_of_memory -> raise Out_of_memory
+        | exn ->
+            let msg = Printexc.to_string exn in
+            let msg = "Exception when getting state: " ^ msg in
+            Lwt_result.fail (`Msg msg))
 
   let refresh_cache t =
     let* state = get t.client in
@@ -274,5 +276,8 @@ struct
     let state = S.create client in
     let dispatch_loop = server (`TCP port) (D.go state assets) in
     let refresh_loop = S.refresh_loop state in
-    Lwt.all [ dispatch_loop; refresh_loop ]
+    let* () = Lwt.pick [ dispatch_loop; refresh_loop ] in
+    Logs.err (fun f ->
+        f "Client ended because of an error in either dispatcher or fetch loop");
+    Lwt.return_unit
 end
