@@ -102,6 +102,8 @@ module Make (Temp : Signatures.Temperature) = struct
     let tls_config =
       (`Crt_file_path cert, `Key_file_path key, `No_password, `Port port)
     in
+    let* ctx = Conduit_lwt_unix.init ~src:"::" () in
+    let ctx = Net.init ~ctx () in
     Printf.printf "Listening (REST) on port %d...\n%!" port;
-    Server.create ~mode:(`TLS tls_config) (Server.make ~callback ())
+    Server.create ~ctx ~mode:(`TLS tls_config) (Server.make ~callback ())
 end
