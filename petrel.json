@@ -1,0 +1,13 @@
+{
+  "version": "0.1",
+  "profiles": {
+    "main": {
+      "opam_repo_rev": "aaebdd3f3ce687e94673d046df96145ff66fbaba",
+      "ocaml_version": "4.14",
+      "mirage_version": "4.4.2",
+      "mirage_root": "./client/",
+      "platform": "unix",
+      "arch": "amd64"
+    }
+  }
+}
