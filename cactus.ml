@@ -195,8 +195,13 @@ let server_go temp telnet dummy_io cert key =
   let certs =
     match (telnet, cert, key) with
     | false, Some cert, Some key -> Some (cert, key)
+    | false, None, None ->
+        Printf.printf "warn: launching REST without https\n";
+        None
     | false, _, _ ->
-        failwith "When using the REST server, both -k and -c must be given"
+        failwith
+          "When using the REST server, -k and -c must be either both passed or \
+           not at all\n"
     | true, None, None -> None
     | true, _, _ ->
         Printf.printf "warn: -k and -c are ignored when using telnet\n";

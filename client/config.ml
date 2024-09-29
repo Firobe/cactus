@@ -18,6 +18,12 @@ let host_port =
   let doc = Key.Arg.info ~doc:"Host of the cactus heater" [ "host-port" ] in
   Key.(create "host_port" Arg.(opt int 2713 doc))
 
+let force_http =
+  let doc =
+    Key.Arg.info ~doc:"Reach host with HTTP instead of HTTPS" [ "http" ]
+  in
+  Key.(create "force_http" Arg.(flag doc))
+
 let refresh_interval =
   let doc =
     Key.Arg.info ~doc:"Interval (in s) between each fetch of data"
@@ -34,7 +40,14 @@ let assets = crunch "assets"
 let main =
   main
     ~keys:
-      [ key port; key host; key host_port; key password; key refresh_interval ]
+      [
+        key port;
+        key host;
+        key host_port;
+        key password;
+        key refresh_interval;
+        key force_http;
+      ]
     ~packages:[ package "tyxml" ]
     "Unikernel.Make"
     (time @-> http @-> http_client @-> kv_ro @-> job)

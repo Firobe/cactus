@@ -37,7 +37,7 @@ module State (Time : Mirage_time.S) (Client : CLIENT) :
   let endpoint path =
     let host = Key_gen.host () in
     let port = Key_gen.host_port () in
-    let scheme = "https" in
+    let scheme = if Key_gen.force_http () then "http" else "https" in
     Uri.make ~scheme ~host ~port ~path ()
 
   let check_error (resp, body) endpoint =
