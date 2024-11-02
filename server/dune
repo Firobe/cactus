@@ -13,5 +13,6 @@
   lwt_ssl
   cmdliner)
  (public_name cactus)
+ (modes byte)
  (preprocess
   (pps ppx_deriving.show)))
