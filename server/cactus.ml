@@ -158,6 +158,11 @@ let dummy_io =
   let env = Cmd.Env.info "CACTUS_DUMMY" in
   Arg.(value & flag & info [ "dummy" ] ~doc ~env)
 
+let coap_sensor =
+  let doc = "Use CoAP server to get remote temperature instead of local sensor." in
+  let env = Cmd.Env.info "CACTUS_REMOTE_SENSOR" in
+  Arg.(value & flag & info [ "remote-sensor" ] ~doc ~env)
+
 let cert =
   let doc = "TLS certificate for the REST server" in
   Arg.(value & opt (some file) None & info [ "c"; "cert" ] ~doc)
@@ -173,16 +178,17 @@ module type S = sig
   val test_routine : unit -> unit
 end
 
-let make_main ~telnet ~dummy_io =
+let make_main ~telnet ~dummy_io ~coap_sensor =
   let server =
     if telnet then (module Telnet.Make : Signatures.Server)
     else (module Rest.Make)
   in
   let temp, io =
     if dummy_io then
-      ( (module Dummy.Temperature : Signatures.Temperature),
+      ( (if coap_sensor then (module Coap_temp : Signatures.Temperature) else
+          (module Dummy.Temperature )),
         (module Dummy.IO : Signatures.IO) )
-    else ((module Temperature), (module Io))
+    else ((if coap_sensor then (module Coap_temp) else (module Temperature)), (module Io))
   in
   let module T = (val temp) in
   let module I = (val io) in
@@ -190,8 +196,8 @@ let make_main ~telnet ~dummy_io =
   let module Main = Make (S) (T) (I) in
   (module Main : S)
 
-let server_go temp telnet dummy_io cert key =
-  let module Main = (val make_main ~telnet ~dummy_io) in
+let server_go temp telnet dummy_io coap_sensor cert key =
+  let module Main = (val make_main ~telnet ~dummy_io ~coap_sensor) in
   let certs =
     match (telnet, cert, key) with
     | false, Some cert, Some key -> Some (cert, key)
@@ -209,20 +215,20 @@ let server_go temp telnet dummy_io cert key =
   in
   Main.launch_daemon temp certs
 
-let test_go telnet dummy_io =
-  let module Main = (val make_main ~telnet ~dummy_io) in
+let test_go telnet dummy_io coap_sensor =
+  let module Main = (val make_main ~telnet ~dummy_io ~coap_sensor) in
   Main.test_routine ()
 
 let server_cmd =
   let t =
-    Term.(const server_go $ temperature $ telnet $ dummy_io $ cert $ privkey)
+    Term.(const server_go $ temperature $ telnet $ dummy_io $ coap_sensor $ cert $ privkey)
   in
   let doc = "launch daemon" in
   let info = Cmd.info "server" ~doc in
   Cmd.v info t
 
 let test_cmd =
-  let t = Term.(const test_go $ telnet $ dummy_io) in
+  let t = Term.(const test_go $ telnet $ dummy_io $ coap_sensor) in
   let doc = "test routine (make sure heater is off)" in
   let info = Cmd.info "test" ~doc in
   Cmd.v info t

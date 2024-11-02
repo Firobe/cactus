@@ -19,6 +19,7 @@
         routes
         cohttp-lwt-unix
         ppx_deriving
+        coap
         lwt
         i2c-unix
         lwt_ssl
